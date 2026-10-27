@@ -1,0 +1,111 @@
+name: Build VitaSurf experimental VPK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile VitaSurf for PS Vita
+    runs-on: ubuntu-latest
+    container:
+      image: vitasdk/vitasdk:2026.08
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Fetch VitaSurf source
+        run: |
+          set -eu
+          git clone --depth 1 --recurse-submodules https://github.com/Breezyslasher/VitaSurf.git VitaSurf
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/VitaSurf"
+
+      - name: Install build requirements
+        working-directory: VitaSurf
+        run: |
+          set -eu
+          if command -v apk >/dev/null 2>&1; then
+            apk update
+            apk add bash cmake ninja git make pkgconf perl gperf flex bison zlib-dev libpng-dev
+          elif command -v apt-get >/dev/null 2>&1; then
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              bash cmake ninja-build git make pkg-config perl gperf flex bison zlib1g-dev libpng-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            pacman -Sy --noconfirm bash cmake ninja git make pkgconf perl gperf flex bison zlib libpng
+          else
+            echo "::error::No supported package manager found"
+            exit 1
+          fi
+
+      - name: Install Vita packages
+        working-directory: VitaSurf
+        run: |
+          set -eu
+          if vdpm list curl >/dev/null 2>&1; then
+            VDPM_NONINTERACTIVE=1 vdpm remove --nodeps --nodeps curl
+          fi
+          VDPM_NONINTERACTIVE=1 vdpm zlib bzip2 libpng libjpeg-turbo freetype zstd mbedtls curl-mbedtls expat libvita2d
+          VDPM_NONINTERACTIVE=1 vdpm libwebp || echo "note: WebP decoder unavailable; build continues"
+
+      - name: Build FreeType with WOFF2
+        working-directory: VitaSurf
+        run: ./scripts/build-freetype-woff2.sh
+
+      - name: Build libjpeg-turbo with NEON
+        working-directory: VitaSurf
+        run: ./scripts/build-libjpeg-simd.sh
+
+      - name: Build libcurl with HTTP/2
+        working-directory: VitaSurf
+        run: ./scripts/build-curl-http2.sh
+
+      - name: Build QuickJS
+        working-directory: VitaSurf
+        run: ./scripts/build-quickjs.sh
+
+      - name: Build WebAssembly runtime
+        working-directory: VitaSurf
+        run: ./scripts/build-wamr.sh
+
+      - name: Build NetSurf libraries
+        working-directory: VitaSurf
+        run: ./scripts/build-deps.sh
+
+      - name: Build NetSurf
+        working-directory: VitaSurf
+        run: ./scripts/build-netsurf.sh
+
+      - name: Configure and compile VPK
+        working-directory: VitaSurf
+        run: |
+          set -eu
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVITASURF_BUILD_ID="$GITHUB_RUN_NUMBER" \
+            -DVITASURF_BUILD_SHA="$(git rev-parse --short HEAD)"
+          cmake --build build
+
+      - name: Upload VPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VitaSurf-experimental-VPK
+          path: VitaSurf/build/VitaSurf.vpk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs and binary for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VitaSurf-build-diagnostics
+          path: |
+            VitaSurf/build/
+            VitaSurf/scripts/*.log
+          if-no-files-found: ignore
+          retention-days: 7
