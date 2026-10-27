@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VitaSurf compatibility check</title>
+<style>
+body{font:16px sans-serif;margin:16px;background:#101820;color:#f1f5f9}
+h1{font-size:1.4rem}li{margin:.7rem 0;overflow-wrap:anywhere}
+.ok{color:#7ee787}.bad{color:#ff7b72}.note{color:#d2a8ff}
+canvas{border:1px solid #8b949e;width:160px;height:80px}
+</style>
+</head>
+<body>
+<h1>VitaSurf compatibility check</h1>
+<p>This local test does not contact Pony Town or send data.</p>
+<ul id="results"></ul>
+<canvas id="canvas" width="160" height="80"></canvas>
+<script>
+(function(){
+ const list=document.getElementById('results');
+ function row(name,ok,detail){
+   const li=document.createElement('li');
+   li.className=ok?'ok':'bad';
+   li.textContent=(ok?'YES: ':'NO/ERROR: ')+name+(detail?' — '+detail:'');
+   list.appendChild(li);
+ }
+ row('JavaScript',true,typeof Promise);
+ row('WebSocket',typeof WebSocket==='function',typeof WebSocket);
+ row('WebAssembly',typeof WebAssembly==='object',typeof WebAssembly);
+ row('requestAnimationFrame',typeof requestAnimationFrame==='function',typeof requestAnimationFrame);
+ row('Canvas 2D',false,'not tested yet');
+ try {
+   const ctx=document.getElementById('canvas').getContext('2d');
+   const ok=!!ctx;
+   row('Canvas 2D context',ok,ok?'context created':'context unavailable');
+   if(ctx){ctx.fillStyle='#42a5f5';ctx.fillRect(0,0,160,80);ctx.fillStyle='#fff';ctx.fillText('Canvas 2D',12,42);}
+ } catch(e){row('Canvas 2D context',false,String(e));}
+ try {
+   const c=document.createElement('canvas');
+   const gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+   row('WebGL 1',!!gl,gl?'context created':'no WebGL context');
+ } catch(e){row('WebGL 1',false,String(e));}
+ try {
+   const c=document.createElement('canvas');
+   const gl2=c.getContext('webgl2');
+   row('WebGL 2',!!gl2,gl2?'context created':'no WebGL 2 context');
+ } catch(e){row('WebGL 2',false,String(e));}
+})();
+</script>
+</body>
+</html>
