@@ -1,0 +1,47 @@
+name: Build Spooky Corridor Vita prototype
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "sjsm-vita-prototype/**"
+      - ".github/workflows/sjsm-vita-prototype.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: vitasdk/vitasdk:2026.08
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install SDL2 Vita package
+        run: |
+          export VITASDK="${VITASDK:-/usr/local/vitasdk}"
+          export PATH="$VITASDK/bin:$PATH"
+          vdpm install sdl2
+
+      - name: Configure
+        run: |
+          export VITASDK="${VITASDK:-/usr/local/vitasdk}"
+          export PATH="$VITASDK/bin:$PATH"
+          cmake -S sjsm-vita-prototype -B build-vita \
+            -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile VPK
+        run: |
+          export VITASDK="${VITASDK:-/usr/local/vitasdk}"
+          export PATH="$VITASDK/bin:$PATH"
+          cmake --build build-vita --parallel 2
+          find build-vita -name "*.vpk" -print
+
+      - name: Upload VPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spooky-Corridor-Vita-prototype
+          path: build-vita/*.vpk
+          if-no-files-found: error
+          retention-days: 14
