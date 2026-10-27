@@ -1,7 +1,8 @@
-#include <SDL.h>
+#include <SDL2/SDL.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define SCREEN_W 960
 #define SCREEN_H 544
